@@ -82,10 +82,16 @@ def model_eval( featex, alpha=1., backup=None ):
     return score_list, gt_list, gray_list
 
 
-def run_files(image_path, template_path):
-    template = cv2.imread( template_path )[...,::-1]
-    image = cv2.imread( image_path )[...,::-1]
+def run_files(image_path, template_path, template_size = 100, outfile='results.png', rect = ( (0,0), (0,0))):
+
+    original = cv2.imread( template_path )
+    m = max(original.shape[0],original.shape[1])
+    scale = template_size / m
+    resized = cv2.resize(original,  (int(original.shape[0]*scale),int(original.shape[1]*scale)) , interpolation = cv2.INTER_NEAREST )
+    template = resized[...,::-1]
     w, h = (template.shape[0],template.shape[1])
+
+    image = cv2.imread( image_path )[...,::-1]
 
     # process images
     template_ = np.expand_dims(preprocess_input( template ), axis=0)
@@ -106,14 +112,15 @@ def run_files(image_path, template_path):
     
     # plot result
     x, y, w, h = locate_bbox( score, w, h )
-    image_plot = cv2.rectangle( image.copy(), (int(x), int(y)), (int(x+w), int(y+h)), (255, 0, 0), 2 )
+    image_plot = cv2.rectangle( image.copy(), (int(x), int(y)), (int(x+w), int(y+h)), (255, 0, 0), 3 )
+    image_gt = cv2.rectangle( image.copy(), rect[0], rect[1], (0, 0, 255), 3 )
     fig, ax = plt.subplots( 1, 4, figsize=(20, 5) )
-    ax[0].imshow(image)
+    ax[0].imshow(image_gt)
     ax[1].imshow(template)
     ax[2].imshow(image_plot)
     ax[3].imshow(score, 'jet')
-    plt.savefig("result.png")
-    plt.show()
+    plt.savefig(outfile)
+    # plt.show()
 
 
 vgg19 = keras.applications.vgg19.VGG19( include_top = False, weights = 'imagenet' )
@@ -136,9 +143,51 @@ model = create_model( featex , alpha=25)
 model_bkup = create_model( featex2 , alpha=25)
 
 
+import os
+import shutil
+import random
 
 
-run_files('puzzles/princess/princess_image.jpg', 'puzzles/princess/10_3/princess_5_10.png')
+
+
+def singleFile(image, template_dir, basename, x, y, w, h, size=50, sizeX=50, sizeY=50):
+    rect = ( (int(x*sizeX), int( (h-y) * sizeY)),   ((int((x+1)*sizeX)), int((h-y-1) * sizeY)) )
+    template = os.path.join(template_dir, basename + '_'+str(x)+'_'+str(y)+'.png')
+    result = os.path.join(result_dir, os.path.splitext(os.path.basename(template))[0] + '_result' + os.path.splitext(os.path.basename(template))[1])
+    run_files(image, template, size, result, rect)
+
+
+basename = 'princess'
+image = 'puzzles/princess/princess_image.jpg'
+template_dir = 'puzzles/princess/10_13'
+result_dir = os.path.join(template_dir,'results')
+
+if not os.path.exists(result_dir):
+    os.makedirs(result_dir)
+w = 10
+h = 13
+count = 10
+pieces = [random.randint(0,w*h) for i in range(count)]
+
+# pass in the piece position and mark as ground truth
+# some measure of scale
+#
+tmp = cv2.imread( image )
+(height, width, _) = tmp.shape
+sizeX = width / w
+sizeY = height / h
+# singleFile(image, template_dir, basename, 9, 12, w, h, 50, sizeX,sizeY)
+
+
+for m in range(0,len(pieces)):
+    y = int(pieces[m] / w)
+    x = pieces[m] - y * w
+    singleFile(image, template_dir, basename, x, y, w, h, 50, sizeX,sizeY)
+
+
+# for x in range(0,w):
+#     for y in range(0,h):
+
 
 
 
