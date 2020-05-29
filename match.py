@@ -16,6 +16,10 @@ import numpy as np
 import cv2
 import os, sys
 
+import os
+import shutil
+import random
+
 print(keras.__version__, tf.__version__)
 
 from models import QATM, MyNormLayer
@@ -112,7 +116,11 @@ def run_files(image_path, template_path, template_size = 100, outfile='results.p
     
     # plot result
     x, y, w, h = locate_bbox( score, w, h )
-    image_plot = cv2.rectangle( image.copy(), (int(x), int(y)), (int(x+w), int(y+h)), (255, 0, 0), 3 )
+    image_plot = cv2.rectangle( image.copy(), (int(x), int(y)), (int(x+w), int(y+h)), (0, 0, 255), 3 )
+    p1 =  (  ( int((rect[0][0] + rect[1][0])*0.5)) , int((rect[0][1] + rect[1][1])*0.5) )
+    p2 =  ( int(x+w*0.5), int(y+h*0.5) )
+    image_plot = cv2.line( image_plot, p1, p2, (255, 255, 255), 2 )
+    image_plot = cv2.rectangle( image_plot, rect[0], rect[1], (255, 0, 0), 3 )
     image_gt = cv2.rectangle( image.copy(), rect[0], rect[1], (0, 0, 255), 3 )
     fig, ax = plt.subplots( 1, 4, figsize=(20, 5) )
     ax[0].imshow(image_gt)
@@ -148,51 +156,36 @@ featex2 = Model( [input_], [concat], name='featex2' )
 model = create_model( featex , alpha=25)
 model_bkup = create_model( featex2 , alpha=25)
 
-
-import os
-import shutil
-import random
-
-
-
-
-def singleFile(image, template_dir, basename, x, y, w, h, size=50, sizeX=50, sizeY=50):
+def singleFile(image, template_dir, basename, results_dir, x, y, w, h, size=50, sizeX=50, sizeY=50):
     title="QATM Piece Match (%s : (%i,%i)) " % (basename, x, y)  
     rect = ( (int(x*sizeX), int( (h-y) * sizeY)),   ((int((x+1)*sizeX)), int((h-y-1) * sizeY)) )
     template = os.path.join(template_dir, basename + '_'+str(x)+'_'+str(y)+'.png')
-    result = os.path.join(result_dir, os.path.splitext(os.path.basename(template))[0] + '_result' + os.path.splitext(os.path.basename(template))[1])
+    result = os.path.join(results_dir, os.path.splitext(os.path.basename(template))[0] + '_result' + os.path.splitext(os.path.basename(template))[1])
     if not os.path.exists(result):
         run_files(image, template, size, result, rect, title)
 
+def runPieces(basename, image, template_dir, results_dir, w, h, count):
+    result_dir = os.path.join(template_dir,'results')
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+    
+    tmp = cv2.imread( image )
+    (height, width, _) = tmp.shape
+    sizeX = width / w
+    sizeY = height / h
 
-basename = 'princess'
-image = 'puzzles/princess/princess_image.jpg'
-template_dir = 'puzzles/princess/10_13'
-result_dir = os.path.join(template_dir,'results')
+    if count > 0:
+        pieces = [random.randint(0,w*h) for i in range(count)]
+        for m in range(0,len(pieces)):
+            y = int(pieces[m] / w)
+            x = pieces[m] - y * w
+            print("Processing %i of %i" %(m, w*h))
+            singleFile(image, template_dir, basename, results_dir, x, y, w, h, 50, sizeX,sizeY)
+    else:
+        for x in range(0,w):
+            for y in range(0,h):
+                print("Processing %i of %i" %(x+y*w, w*h))
+                 singleFile(image, template_dir, basename, results_dir, x, y, w, h, 50, sizeX,sizeY)
 
-if not os.path.exists(result_dir):
-    os.makedirs(result_dir)
-w = 10
-h = 13
-count = 60
-pieces = [random.randint(0,w*h) for i in range(count)]
-
-# pass in the piece position and mark as ground truth
-# some measure of scale
-#
-tmp = cv2.imread( image )
-(height, width, _) = tmp.shape
-sizeX = width / w
-sizeY = height / h
-
-for m in range(0,len(pieces)):
-    y = int(pieces[m] / w)
-    x = pieces[m] - y * w
-    singleFile(image, template_dir, basename, x, y, w, h, 50, sizeX,sizeY)
-
-# for x in range(0,w):
-#     for y in range(0,h):
-#         singleFile(image, template_dir, basename, x, y, w, h, 50, sizeX,sizeY)
-
-
-
+runPieces('bake-off', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9', 'puzzles/bake-off/13_9/results',13, 9)
+runPieces('princess', 'puzzles/princess/princess.jpg', 'puzzles/princess/10_13', 10, 13)
