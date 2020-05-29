@@ -82,7 +82,7 @@ def model_eval( featex, alpha=1., backup=None ):
     return score_list, gt_list, gray_list
 
 
-def run_files(image_path, template_path, template_size = 100, outfile='results.png', rect = ( (0,0), (0,0))):
+def run_files(image_path, template_path, template_size = 100, outfile='results.png', rect = ( (0,0), (0,0)), title='QATM Piece Match'):
 
     original = cv2.imread( template_path )
     m = max(original.shape[0],original.shape[1])
@@ -116,11 +116,17 @@ def run_files(image_path, template_path, template_size = 100, outfile='results.p
     image_gt = cv2.rectangle( image.copy(), rect[0], rect[1], (0, 0, 255), 3 )
     fig, ax = plt.subplots( 1, 4, figsize=(20, 5) )
     ax[0].imshow(image_gt)
+    ax[0].set_title('Ground Truth (Blue)')
     ax[1].imshow(template)
+    ax[1].set_title('Piece')
     ax[2].imshow(image_plot)
+    ax[2].set_title('Best Guess (Red)')
     ax[3].imshow(score, 'jet')
+    ax[3].set_title('Per Pixel Score')
+    fig.suptitle(title, fontsize=20)
     plt.savefig(outfile)
     # plt.show()
+    fig.clf()
 
 
 vgg19 = keras.applications.vgg19.VGG19( include_top = False, weights = 'imagenet' )
@@ -151,10 +157,12 @@ import random
 
 
 def singleFile(image, template_dir, basename, x, y, w, h, size=50, sizeX=50, sizeY=50):
+    title="QATM Piece Match (%s : (%i,%i)) " % (basename, x, y)  
     rect = ( (int(x*sizeX), int( (h-y) * sizeY)),   ((int((x+1)*sizeX)), int((h-y-1) * sizeY)) )
     template = os.path.join(template_dir, basename + '_'+str(x)+'_'+str(y)+'.png')
     result = os.path.join(result_dir, os.path.splitext(os.path.basename(template))[0] + '_result' + os.path.splitext(os.path.basename(template))[1])
-    run_files(image, template, size, result, rect)
+    if not os.path.exists(result):
+        run_files(image, template, size, result, rect, title)
 
 
 basename = 'princess'
@@ -166,7 +174,7 @@ if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 w = 10
 h = 13
-count = 10
+count = 60
 pieces = [random.randint(0,w*h) for i in range(count)]
 
 # pass in the piece position and mark as ground truth
@@ -176,18 +184,15 @@ tmp = cv2.imread( image )
 (height, width, _) = tmp.shape
 sizeX = width / w
 sizeY = height / h
-# singleFile(image, template_dir, basename, 9, 12, w, h, 50, sizeX,sizeY)
-
 
 for m in range(0,len(pieces)):
     y = int(pieces[m] / w)
     x = pieces[m] - y * w
     singleFile(image, template_dir, basename, x, y, w, h, 50, sizeX,sizeY)
 
-
 # for x in range(0,w):
 #     for y in range(0,h):
-
+#         singleFile(image, template_dir, basename, x, y, w, h, 50, sizeX,sizeY)
 
 
 
