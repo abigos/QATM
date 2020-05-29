@@ -164,7 +164,7 @@ def singleFile(image, template_dir, basename, results_dir, x, y, w, h, size=50, 
     if not os.path.exists(result):
         run_files(image, template, size, result, rect, title)
 
-def runPieces(basename, image, template_dir, results_dir, w, h, count):
+def runPieces(basename, image, template_dir, results_dir, w, h, count=0):
     result_dir = os.path.join(template_dir,'results')
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
@@ -175,17 +175,16 @@ def runPieces(basename, image, template_dir, results_dir, w, h, count):
     sizeY = height / h
 
     if count > 0:
+
         pieces = [random.randint(0,w*h) for i in range(count)]
         for m in range(0,len(pieces)):
             y = int(pieces[m] / w)
             x = pieces[m] - y * w
-            print("Processing %i of %i" %(m, w*h))
             singleFile(image, template_dir, basename, results_dir, x, y, w, h, 50, sizeX,sizeY)
     else:
         for x in range(0,w):
             for y in range(0,h):
-                print("Processing %i of %i" %(x+y*w, w*h))
-                 singleFile(image, template_dir, basename, results_dir, x, y, w, h, 50, sizeX,sizeY)
+                singleFile(image, template_dir, basename, results_dir, x, y, w, h, 50, sizeX,sizeY)
 
-runPieces('bake-off', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9', 'puzzles/bake-off/13_9/results',13, 9)
-runPieces('princess', 'puzzles/princess/princess.jpg', 'puzzles/princess/10_13', 10, 13)
+# runPieces('bake-off', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9', 'puzzles/bake-off/13_9/results',13, 9)
+# runPieces('princess', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/10_13', 'puzzles/princess/10_13/results', 10, 13)
