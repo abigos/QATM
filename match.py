@@ -10,7 +10,6 @@ from keras.layers import Input, Lambda, Concatenate
 from keras import Model
 import keras.backend as K
 from keras.applications.vgg16 import preprocess_input
-import progressbar
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
@@ -40,54 +39,31 @@ def create_model( featex, alpha = 1. ):
     conf_map = QATM(alpha, name='qatm')( dist )
     return Model( [T, I], [conf_map], name='QATM_model' )
 
-def model_eval( featex, alpha=1., backup=None ):
-    '''
-    Have a backup featex in case image is too big.
-    '''
-    model = create_model( featex , alpha=alpha)
-    if backup is not None:
-        model_bkup = create_model( backup , alpha=alpha)
-    else:
-        model_bkup = model
-    gt_list, gray_list, score_list = [], [], []
+vgg19 = keras.applications.vgg19.VGG19( include_top = False, weights = 'imagenet' )
 
-    num_samples = len(img_path) // 2
-    bar = progressbar.ProgressBar(max_value=num_samples)
-    for idx in range(num_samples):
-        bar.update(idx + 1)
-        # load image and ground truth
-        template_raw = cv2.imread( img_path[2*idx] )[...,::-1]
-        template_bbox = read_gt( gt[2*idx] )
-        x, y, w, h = [int(round(t)) for t in template_bbox]
-        template = template_raw[y:y+h, x:x+w]
-        image = cv2.imread( img_path[2*idx+1] )[...,::-1]
-        image_gt = read_gt( gt[2*idx+1] )
-        x_gt, y_gt, w_gt, h_gt = [int(round(t)) for t in image_gt]
+# resize conv3_4 to conv1_2
+input_ = vgg19.input
+conv1_2 = vgg19.get_layer('block1_conv2').output
+conv3_4 = vgg19.get_layer('block3_conv4').output
+conv3_4 = Lambda( lambda x: tf.image.resize( x[0], size=(tf.shape(x[1])[1], tf.shape(x[1])[2])), name='resized_image' )( [conv3_4, conv1_2] )
+concat = Concatenate()( [conv1_2, conv3_4] )
+featex = Model( [input_], [concat], name='featex' )
+# resize conv1_2 to conv3_4, used when image size is too big
+input_ = vgg19.input
+conv1_2 = vgg19.get_layer('block1_conv2').output
+conv3_4 = vgg19.get_layer('block3_conv4').output
+conv1_2 = Lambda( lambda x: tf.image.resize( x[1], size=(tf.shape(x[0])[1], tf.shape(x[0])[2])), name='resized_image' )( [conv3_4, conv1_2] )
+concat = Concatenate()( [conv1_2, conv3_4] )
+featex2 = Model( [input_], [concat], name='featex2' )
+model = create_model( featex , alpha=25)
+model_bkup = create_model( featex2 , alpha=25)
+
+
+def run_files(image_path, template_path, template_size = 100, outfile='results.png', rect = ( (0,0), (0,0)), title='QATM Piece Match', verbose = True):
+
+    if verbose:
+        print("Processing: %s  %s  " %(image_path,template_path))
         
-        # process images
-        template_ = np.expand_dims(preprocess_input( template ), axis=0)
-        image_ = np.expand_dims(preprocess_input( image ) , axis=0)
-        if w*h <= 4000:
-            val = model.predict( [template_, image_] )
-        else:
-            # used when image is too big
-            val = model_bkup.predict( [template_, image_] )
-        
-        # compute geometry mean on score map
-        val = np.log( val )
-        gray = val[0,:,:,0]
-        gray = cv2.resize( gray, (image.shape[1], image.shape[0]) )
-        score = compute_score( gray, w_gt, h_gt )
-        score[score>-1e-7] = -np.inf
-        
-        gt_list.append( image_gt )
-        gray_list.append( gray )
-        score_list.append( score )
-    return score_list, gt_list, gray_list
-
-
-def run_files(image_path, template_path, template_size = 100, outfile='results.png', rect = ( (0,0), (0,0)), title='QATM Piece Match'):
-
     original = cv2.imread( template_path )
     m = max(original.shape[0],original.shape[1])
     scale = template_size / m
@@ -125,7 +101,7 @@ def run_files(image_path, template_path, template_size = 100, outfile='results.p
     fig, ax = plt.subplots( 1, 4, figsize=(20, 5) )
 
     ax[0].imshow(image_gt)
-    ax[0].set_title('Ground Truth (Blue)')
+    ax[0].set_title('Ground Truth Blue')
 
 
     ax[1].imshow(template)
@@ -135,44 +111,27 @@ def run_files(image_path, template_path, template_size = 100, outfile='results.p
 
 
     ax[2].imshow(image_plot)
-    ax[2].set_title('Best Guess (Red)')
+    ax[2].set_title('Ground Truth Blue - Best Guess Red')
 
     ax[3].imshow(score, 'jet')
     ax[3].set_title('Per Pixel Score')
+
     fig.suptitle(title, fontsize=20)
     plt.savefig(outfile)
-    # plt.show()
     fig.clf()
 
 
-vgg19 = keras.applications.vgg19.VGG19( include_top = False, weights = 'imagenet' )
 
-# resize conv3_4 to conv1_2
-input_ = vgg19.input
-conv1_2 = vgg19.get_layer('block1_conv2').output
-conv3_4 = vgg19.get_layer('block3_conv4').output
-conv3_4 = Lambda( lambda x: tf.image.resize_bilinear( x[0], size=(tf.shape(x[1])[1], tf.shape(x[1])[2]), align_corners=True), name='resized_image' )( [conv3_4, conv1_2] )
-concat = Concatenate()( [conv1_2, conv3_4] )
-featex = Model( [input_], [concat], name='featex' )
-# resize conv1_2 to conv3_4, used when image size is too big
-input_ = vgg19.input
-conv1_2 = vgg19.get_layer('block1_conv2').output
-conv3_4 = vgg19.get_layer('block3_conv4').output
-conv1_2 = Lambda( lambda x: tf.image.resize_bilinear( x[1], size=(tf.shape(x[0])[1], tf.shape(x[0])[2]), align_corners=True), name='resized_image' )( [conv3_4, conv1_2] )
-concat = Concatenate()( [conv1_2, conv3_4] )
-featex2 = Model( [input_], [concat], name='featex2' )
-model = create_model( featex , alpha=25)
-model_bkup = create_model( featex2 , alpha=25)
 
-def singleFile(image, template_dir, basename, results_dir, x, y, w, h, size=50, sizeX=50, sizeY=50):
+def singleFile(image, template_dir, basename, results_dir, x, y, w, h, size=50, sizeX=50, sizeY=50, force = False):
     title="QATM Piece Match (%s : (%i,%i)) " % (basename, x, y)  
     rect = ( (int(x*sizeX), int( (h-y) * sizeY)),   ((int((x+1)*sizeX)), int((h-y-1) * sizeY)) )
     template = os.path.join(template_dir, basename + '_'+str(x)+'_'+str(y)+'.png')
     result = os.path.join(results_dir, os.path.splitext(os.path.basename(template))[0] + '_result' + os.path.splitext(os.path.basename(template))[1])
-    if not os.path.exists(result):
+    if not os.path.exists(result) or force:
         run_files(image, template, size, result, rect, title)
 
-def runPieces(basename, image, template_dir, results_dir, w, h, dryRun=False):
+def runPieces(basename, image, template_dir, results_dir, w, h, force=False, dryRun=False):
     result_dir = os.path.join(template_dir,'results')
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
@@ -182,12 +141,9 @@ def runPieces(basename, image, template_dir, results_dir, w, h, dryRun=False):
     sizeX = width / w
     sizeY = height / h
 
-
     count = 1
     for x in range(0,w):
         for y in range(0,h):
-            print("Processing: %s %i of %i" %(image, count, w*h))
-            count = count+1
             singleFile(image, template_dir, basename, results_dir, x, y, w, h, 50, sizeX,sizeY)
             if dryRun:
                 break
@@ -195,14 +151,18 @@ def runPieces(basename, image, template_dir, results_dir, w, h, dryRun=False):
             break
 
 
-
-dryrun = True
-# runPieces('holiday', 'puzzles/holiday/holiday_image.jpg',  'puzzles/holiday/12_8', 'puzzles/holiday/12_8/results', 12, 8, dryrun)
-# runPieces('holiday', 'puzzles/holiday/holiday_image_quad_1.jpg',  'puzzles/holiday/12_8', 'puzzles/holiday/12_8/results2', 12, 8, dryrun)
-# runPieces('holiday_trimmed', 'puzzles/holiday/holiday_image.jpg',  'puzzles/holiday/12_8_trimmed', 'puzzles/holiday/12_8_trimmed/results', 12, 8, dryrun)
+dryrun = False
+force = False
+# runPieces('holiday', 'puzzles/holiday/holiday_image.jpg',  'puzzles/holiday/12_8', 'puzzles/holiday/12_8/results', 12, 8, force, dryrun)
+# runPieces('holiday', 'puzzles/holiday/holiday_image_quad_1.jpg',  'puzzles/holiday/12_8', 'puzzles/holiday/12_8/results2', 12, 8,force,  dryrun)
+# runPieces('holiday_trimmed', 'puzzles/holiday/holiday_image.jpg',  'puzzles/holiday/12_8_trimmed', 'puzzles/holiday/12_8_trimmed/results', 12, 8, force, dryrun)
 # runPieces('princess', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15', 'puzzles/princess/12_15/results', 12, 15, dryrun)
-# runPieces('princess_trimmed', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15_trimmed', 'puzzles/princess/12_15_trimmed/results', 12, 15, dryrun)
-# runPieces('bake-off', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9', 'puzzles/bake-off/13_9/results',13, 9, dryrun)
-# runPieces('bake-off_trimmed', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9_trimmed', 'puzzles/bake-off/13_9_trimmed/results',13, 9, dryrun)
+# runPieces('princess_trimmed', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15_trimmed', 'puzzles/princess/12_15_trimmed/results', 12, 15, force, dryrun)
+# runPieces('bake-off', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9', 'puzzles/bake-off/13_9/results',13, 9, force, dryrun)
+# runPieces('bake-off_trimmed', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9_trimmed', 'puzzles/bake-off/13_9_trimmed/results',13, 9, force, dryrun)
+
+
+# runPieces('princess', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15/pieces', 'puzzles/princess/12_15/pieces/results', 12, 15, force, dryrun)
+runPieces('princess_trimmed', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15/trimmed', 'puzzles/princess/12_15/trimmed/results', 12, 15, force, dryrun)
 
 
