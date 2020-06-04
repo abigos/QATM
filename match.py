@@ -59,7 +59,7 @@ model = create_model( featex , alpha=25)
 model_bkup = create_model( featex2 , alpha=25)
 
 
-def run_files(image_path, template_path, template_size = 100, outfile='results.png', rect = ( (0,0), (0,0)), title='QATM Piece Match', verbose = True):
+def run_files(image_path, image_size, template_path, template_size = 100, outfile='results.png', rect = ( (0,0), (0,0)), title='QATM Piece Match', verbose = True):
 
     if verbose:
         print("Processing: %s  %s  " %(image_path,template_path))
@@ -72,6 +72,9 @@ def run_files(image_path, template_path, template_size = 100, outfile='results.p
     w, h = (template.shape[0],template.shape[1])
 
     image = cv2.imread( image_path )[...,::-1]
+    m = max(image.shape[0],image.shape[1])
+    scale = image_size / m
+    image = cv2.resize(image,  (int(image.shape[1]*scale),int(image.shape[0]*scale)) , interpolation = cv2.INTER_NEAREST )
 
     # process images
     template_ = np.expand_dims(preprocess_input( template ), axis=0)
@@ -106,9 +109,6 @@ def run_files(image_path, template_path, template_size = 100, outfile='results.p
 
     ax[1].imshow(template)
     ax[1].set_title('Piece')
-    ax[1].set_xlim([0, w])
-    ax[1].set_ylim([0, h])
-
 
     ax[2].imshow(image_plot)
     ax[2].set_title('Ground Truth Blue - Best Guess Red')
@@ -121,30 +121,32 @@ def run_files(image_path, template_path, template_size = 100, outfile='results.p
     fig.clf()
 
 
-
-
-def singleFile(image, template_dir, basename, results_dir, x, y, w, h, size=50, sizeX=50, sizeY=50, force = False):
+def singleFile(image, template_dir, basename, results_dir, x, y, w, h, imageSize=600, size=50, sizeX=50, sizeY=50, force = False):
     title="QATM Piece Match (%s : (%i,%i)) " % (basename, x, y)  
     rect = ( (int(x*sizeX), int( (h-y) * sizeY)),   ((int((x+1)*sizeX)), int((h-y-1) * sizeY)) )
     template = os.path.join(template_dir, basename + '_'+str(x)+'_'+str(y)+'.png')
     result = os.path.join(results_dir, os.path.splitext(os.path.basename(template))[0] + '_result' + os.path.splitext(os.path.basename(template))[1])
-    if not os.path.exists(result) or force:
-        run_files(image, template, size, result, rect, title)
+    if os.path.exists(result) and not force:
+        return
+    else:
+        run_files(image, imageSize, template, size, result, rect, title)
 
-def runPieces(basename, image, template_dir, results_dir, w, h, force=False, dryRun=False):
-    result_dir = os.path.join(template_dir,'results')
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
+def runPieces(basename, image, imageSize, template_dir, templateSize, results_dir, w, h, force=False, dryRun=False):
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir)
     
     tmp = cv2.imread( image )
+
     (height, width, _) = tmp.shape
-    sizeX = width / w
-    sizeY = height / h
+    m = max(height,width)
+    scale = imageSize / m    
+    sizeX = width * scale / w
+    sizeY = height * scale / h
 
     count = 1
     for x in range(0,w):
         for y in range(0,h):
-            singleFile(image, template_dir, basename, results_dir, x, y, w, h, 50, sizeX,sizeY)
+            singleFile(image, template_dir, basename, results_dir, x, y, w, h, imageSize, templateSize, sizeX,sizeY, force)
             if dryRun:
                 break
         if dryRun:
@@ -152,17 +154,12 @@ def runPieces(basename, image, template_dir, results_dir, w, h, force=False, dry
 
 
 dryrun = False
-force = False
-# runPieces('holiday', 'puzzles/holiday/holiday_image.jpg',  'puzzles/holiday/12_8', 'puzzles/holiday/12_8/results', 12, 8, force, dryrun)
-# runPieces('holiday', 'puzzles/holiday/holiday_image_quad_1.jpg',  'puzzles/holiday/12_8', 'puzzles/holiday/12_8/results2', 12, 8,force,  dryrun)
-# runPieces('holiday_trimmed', 'puzzles/holiday/holiday_image.jpg',  'puzzles/holiday/12_8_trimmed', 'puzzles/holiday/12_8_trimmed/results', 12, 8, force, dryrun)
-# runPieces('princess', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15', 'puzzles/princess/12_15/results', 12, 15, dryrun)
-# runPieces('princess_trimmed', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15_trimmed', 'puzzles/princess/12_15_trimmed/results', 12, 15, force, dryrun)
-# runPieces('bake-off', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9', 'puzzles/bake-off/13_9/results',13, 9, force, dryrun)
-# runPieces('bake-off_trimmed', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9_trimmed', 'puzzles/bake-off/13_9_trimmed/results',13, 9, force, dryrun)
+force = True
+imageSize = 600
+templateSize = 40
 
 
-# runPieces('princess', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15/pieces', 'puzzles/princess/12_15/pieces/results', 12, 15, force, dryrun)
-runPieces('princess_trimmed', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15/trimmed', 'puzzles/princess/12_15/trimmed/results', 12, 15, force, dryrun)
+runPieces('princess', '../puzzle/puzzles/princess/12_15/princess_image.jpg', imageSize,  '../puzzle/puzzles/princess/12_15/piece', templateSize, 'puzzles/princess/12_15/pieces_results', 12, 15, force, dryrun)
+runPieces('princess_trimmed', '../puzzle/puzzles/princess/12_15/princess_image.jpg', imageSize,  '../puzzle/puzzles/princess/12_15/trimmed', templateSize, 'puzzles/princess/12_15/trimmed_results', 12, 15, force, dryrun)
 
 
