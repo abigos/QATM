@@ -115,20 +115,28 @@ def run_files(image_path, template_path, template_size = 100, outfile='results.p
     score = np.exp(score / (h*w)) # reverse number range back after computing geometry average
     
     # plot result
-    x, y, w, h = locate_bbox( score, w, h )
-    image_plot = cv2.rectangle( image.copy(), (int(x), int(y)), (int(x+w), int(y+h)), (0, 0, 255), 3 )
+    x, y, ww, hh = locate_bbox( score, w, h )
+    image_plot = cv2.rectangle( image.copy(), (int(x), int(y)), (int(x+ww), int(y+hh)), (255, 0, 0), 3 )
     p1 =  (  ( int((rect[0][0] + rect[1][0])*0.5)) , int((rect[0][1] + rect[1][1])*0.5) )
-    p2 =  ( int(x+w*0.5), int(y+h*0.5) )
+    p2 =  ( int(x+ww*0.5), int(y+hh*0.5) )
     image_plot = cv2.line( image_plot, p1, p2, (255, 255, 255), 2 )
-    image_plot = cv2.rectangle( image_plot, rect[0], rect[1], (255, 0, 0), 3 )
+    image_plot = cv2.rectangle( image_plot, rect[0], rect[1], (0, 0, 255), 3 )
     image_gt = cv2.rectangle( image.copy(), rect[0], rect[1], (0, 0, 255), 3 )
     fig, ax = plt.subplots( 1, 4, figsize=(20, 5) )
+
     ax[0].imshow(image_gt)
     ax[0].set_title('Ground Truth (Blue)')
+
+
     ax[1].imshow(template)
     ax[1].set_title('Piece')
+    ax[1].set_xlim([0, w])
+    ax[1].set_ylim([0, h])
+
+
     ax[2].imshow(image_plot)
     ax[2].set_title('Best Guess (Red)')
+
     ax[3].imshow(score, 'jet')
     ax[3].set_title('Per Pixel Score')
     fig.suptitle(title, fontsize=20)
@@ -164,7 +172,7 @@ def singleFile(image, template_dir, basename, results_dir, x, y, w, h, size=50, 
     if not os.path.exists(result):
         run_files(image, template, size, result, rect, title)
 
-def runPieces(basename, image, template_dir, results_dir, w, h, count=0):
+def runPieces(basename, image, template_dir, results_dir, w, h, dryRun=False):
     result_dir = os.path.join(template_dir,'results')
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
@@ -174,17 +182,27 @@ def runPieces(basename, image, template_dir, results_dir, w, h, count=0):
     sizeX = width / w
     sizeY = height / h
 
-    if count > 0:
 
-        pieces = [random.randint(0,w*h) for i in range(count)]
-        for m in range(0,len(pieces)):
-            y = int(pieces[m] / w)
-            x = pieces[m] - y * w
+    count = 1
+    for x in range(0,w):
+        for y in range(0,h):
+            print("Processing: %s %i of %i" %(image, count, w*h))
+            count = count+1
             singleFile(image, template_dir, basename, results_dir, x, y, w, h, 50, sizeX,sizeY)
-    else:
-        for x in range(0,w):
-            for y in range(0,h):
-                singleFile(image, template_dir, basename, results_dir, x, y, w, h, 50, sizeX,sizeY)
+            if dryRun:
+                break
+        if dryRun:
+            break
 
-# runPieces('bake-off', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9', 'puzzles/bake-off/13_9/results',13, 9)
-# runPieces('princess', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/10_13', 'puzzles/princess/10_13/results', 10, 13)
+
+
+dryrun = True
+# runPieces('holiday', 'puzzles/holiday/holiday_image.jpg',  'puzzles/holiday/12_8', 'puzzles/holiday/12_8/results', 12, 8, dryrun)
+# runPieces('holiday', 'puzzles/holiday/holiday_image_quad_1.jpg',  'puzzles/holiday/12_8', 'puzzles/holiday/12_8/results2', 12, 8, dryrun)
+# runPieces('holiday_trimmed', 'puzzles/holiday/holiday_image.jpg',  'puzzles/holiday/12_8_trimmed', 'puzzles/holiday/12_8_trimmed/results', 12, 8, dryrun)
+# runPieces('princess', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15', 'puzzles/princess/12_15/results', 12, 15, dryrun)
+# runPieces('princess_trimmed', 'puzzles/princess/princess_image.jpg',  'puzzles/princess/12_15_trimmed', 'puzzles/princess/12_15_trimmed/results', 12, 15, dryrun)
+# runPieces('bake-off', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9', 'puzzles/bake-off/13_9/results',13, 9, dryrun)
+# runPieces('bake-off_trimmed', 'puzzles/bake-off/bake-off_image.jpg', 'puzzles/bake-off/13_9_trimmed', 'puzzles/bake-off/13_9_trimmed/results',13, 9, dryrun)
+
+
