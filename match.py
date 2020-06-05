@@ -4,6 +4,9 @@ import numpy as np
 import cv2
 import os, sys
 
+import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import keras
 import tensorflow as tf
 from keras.layers import Input, Lambda, Concatenate
@@ -154,12 +157,25 @@ def runPieces(basename, image, imageSize, template_dir, templateSize, results_di
 
 
 dryrun = False
-force = True
+force = False
 imageSize = 600
 templateSize = 40
 
 
-runPieces('princess', '../puzzle/puzzles/princess/12_15/princess_image.jpg', imageSize,  '../puzzle/puzzles/princess/12_15/piece', templateSize, 'puzzles/princess/12_15/pieces_results', 12, 15, force, dryrun)
-runPieces('princess_trimmed', '../puzzle/puzzles/princess/12_15/princess_image.jpg', imageSize,  '../puzzle/puzzles/princess/12_15/trimmed', templateSize, 'puzzles/princess/12_15/trimmed_results', 12, 15, force, dryrun)
+# princess library holidays harvesters
+
+def doCompare(puzzle, w, h):
+    dir = '../puzzle/puzzles/'+puzzle+'/'+str(w)+'_'+str(h)+'/'
+    out = 'puzzles/'+puzzle+'/'+str(w)+'_'+str(h)+'/'
+    runPieces(puzzle, dir + puzzle + '_image.jpg', imageSize,  dir+'piece', templateSize, out+'pieces_results', w, h, force, dryrun)
+    runPieces(puzzle+'_trimmed', dir + puzzle+'_image.jpg', imageSize,  dir+'trimmed', templateSize, out+'trimmed_results', w, h, force, dryrun)
+    
+
+doCompare('holidays',18,12)
+doCompare('princess',12,15)
+doCompare('library',18,12)
+doCompare('harvesters',18,13)
+
+
 
 
