@@ -165,16 +165,16 @@ templateSize = 40
 # princess library holidays harvesters
 
 def doCompare(puzzle, w, h):
-    dir = '../puzzle/puzzles/'+puzzle+'/'+str(w)+'_'+str(h)+'/'
-    out = 'puzzles/'+puzzle+'/'+str(w)+'_'+str(h)+'/'
+    dir = 'puzzles/'+puzzle+'/'+str(w)+'_'+str(h)+'/'
+    out = 'matching/QATM/'+puzzle+'/'+str(w)+'_'+str(h)+'/'
     runPieces(puzzle, dir + puzzle + '_image.jpg', imageSize,  dir+'piece', templateSize, out+'pieces_results', w, h, force, dryrun)
     runPieces(puzzle+'_trimmed', dir + puzzle+'_image.jpg', imageSize,  dir+'trimmed', templateSize, out+'trimmed_results', w, h, force, dryrun)
     
 
-doCompare('holidays',18,12)
+# doCompare('holidays',18,12)
 doCompare('princess',12,15)
-doCompare('library',18,12)
-doCompare('harvesters',18,13)
+# doCompare('library',18,12)
+# doCompare('harvesters',18,13)
 
 
 
